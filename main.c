@@ -8,6 +8,9 @@
 
 #define CLEAR_SCREEN "\033[2J"
 #define MOVE_CURSOR_HOME "\033[H"
+#define MOVE_CURSOR_MIDDLE "\033[0;10H"
+#define MOVE_CURSOR_DOWN "\033[5B"
+#define MOVE_CURSOR_RIGHT "\033[5C"
 #define _XOPEN_SOURCE 700
 
 #define CURSOR_ON "\033[?25h"
@@ -26,6 +29,8 @@
 #define STYLE_BOLD "\033[1m"
 #define STYLE_UNDERLINE "\033[4m"
 
+#define KEY_ESC 0x1b
+#define KEY_ENTER 0x0a
 #define KEY_UP 'A'
 #define KEY_DOWN 'B'
 #define KEY_RIGHT 'C'
@@ -34,11 +39,13 @@
 #define MENU_ITEM_COUNT 5
 
 const char *menu_items[MENU_ITEM_COUNT] = {
-    "Item 1",
-    "Item 2",
-    "Item 3",
-    "Item 4",
-    "Item 5"};
+    "New",
+    "Open",
+    "Save",
+    "Options",
+    "Exit"};
+
+int current_item = 0;
 
 // int getkey()
 // {
@@ -68,25 +75,79 @@ int getch(void)
 {
     int c = 0;
 
-    struct termios org_opts, new_opts;
+    struct termios original, term;
     int res = 0;
     //-----  store old settings -----------
-    res = tcgetattr(STDIN_FILENO, &org_opts);
+    res = tcgetattr(STDIN_FILENO, &original);
     assert(res == 0);
     //---- set new terminal parms --------
-    memcpy(&new_opts, &org_opts, sizeof(new_opts));
-    new_opts.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK | ECHONL | ECHOPRT | ECHOKE | ICRNL);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_opts);
+    memcpy(&term, &original, sizeof(term));
+    term.c_lflag &= ~ICANON;
+    term.c_lflag &= ~ECHO;
+    term.c_cc[VMIN] = 1;
+    term.c_cc[VTIME] = 0;
+    // new_opts.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK | ECHONL | ECHOPRT | ECHOKE | ICRNL);
+    res = tcsetattr(STDIN_FILENO, TCSANOW, &term);
+    assert(res == 0);
     c = getchar();
     //------  restore old settings ---------
-    res = tcsetattr(STDIN_FILENO, TCSANOW, &org_opts);
+    res = tcsetattr(STDIN_FILENO, TCSANOW, &original);
     assert(res == 0);
     return (c);
 }
 
+void escape_sequence_mode()
+{
+    char key;
+    key = getch();
+    assert(key == '[');
+    key = getch();
+    switch (key)
+    {
+    case KEY_UP:
+        current_item--;
+        if (current_item < 0)
+        {
+            current_item = MENU_ITEM_COUNT - 1;
+        }
+        break;
+    case KEY_DOWN:
+        current_item++;
+        if (current_item >= MENU_ITEM_COUNT)
+        {
+            current_item = 0;
+        }
+        break;
+    case KEY_LEFT:
+        // Traitement des touches de gauche ici
+        break;
+    case KEY_RIGHT:
+        // Traitement des touches de droite ici
+        break;
+    default:
+        // Traitement des autres touches ici
+        // printf("key: %c 0x%02x\n", key, key);
+        break;
+    }
+}
+
+void check_choice()
+{
+    switch (current_item)
+    {
+    case 4:
+        exit(0);
+        break;
+    default:
+        // Traitement des autres touches ici
+        // printf("key: %c 0x%02x\n", key, key);
+        break;
+    }
+}
+
 int main(int argc, char **argv)
 {
-    int current_item = 0;
+    char key;
 
     // Masque le curseur et efface l'écran
     printf(CURSOR_OFF CLEAR_SCREEN);
@@ -94,10 +155,11 @@ int main(int argc, char **argv)
     while (1)
     {
         // Déplace le curseur en haut de l'écran et affiche les éléments de menu
-        printf(MOVE_CURSOR_HOME);
+        printf(MOVE_CURSOR_HOME MOVE_CURSOR_DOWN);
 
         for (int i = 0; i < MENU_ITEM_COUNT; i++)
         {
+            printf(MOVE_CURSOR_RIGHT);
             // Met en surbrillance l'élément de menu actuellement sélectionné
             if (i == current_item)
             {
@@ -108,35 +170,27 @@ int main(int argc, char **argv)
                 printf("%s\n", menu_items[i]);
             }
         }
+        // printf("key: %c 0x%02x\n", key, key);
 
         // Lit une touche pressée par l'utilisateur
-        char key = getch();
+        key = getch();
+        // printf("key: %c 0x%02x\n", key, key);
 
         // Navigue dans le menu en fonction de la touche pressée
         switch (key)
         {
-        case KEY_UP:
-            current_item--;
-            if (current_item < 0)
-            {
-                current_item = MENU_ITEM_COUNT - 1;
-            }
+        case KEY_ESC:
+            escape_sequence_mode();
+            printf(CLEAR_SCREEN);
             break;
-        case KEY_DOWN:
-            current_item++;
-            if (current_item >= MENU_ITEM_COUNT)
-            {
-                current_item = 0;
-            }
-            break;
-        case KEY_LEFT:
-            // Traitement des touches de gauche ici
-            break;
-        case KEY_RIGHT:
-            // Traitement des touches de droite ici
+        case KEY_ENTER:
+            printf("selected: %s\n", menu_items[current_item]);
+            // escape_sequence_mode();
+            check_choice();
             break;
         default:
             // Traitement des autres touches ici
+            // printf("key: %c 0x%02x\n", key, key);
             break;
         }
     }
