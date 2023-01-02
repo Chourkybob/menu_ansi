@@ -1,6 +1,6 @@
 
 all:
-	gcc -o serialCom main.c -lncurses
+	gcc -o menu main.c -lncurses
 
 clean:
-	rm serialCom
+	rm menu
